@@ -1,0 +1,107 @@
+paths:
+  weapon_model_deployed: weapon_detection_custom.pt
+  weapon_model_best: weapon_training/models/weapon_detection_best.pt
+  weapon_results: weapon_training/results
+
+weapon:
+  classes:
+    - knife
+    - pistol
+  knife_threshold: 0.35
+  pistol_threshold: 0.3
+  danger_threshold: 0.6
+  fallback_primary: yolov8n.pt
+  fallback_secondary: yolov8s.pt
+
+weapon_training:
+  kaggle:
+    dataset_slug: iqmansingh/guns-knives-object-detection
+    extract_subdir: guns-knives-yolo/guns-knives-yolo
+  dataset:
+    classes:
+      0: knife
+      1: pistol
+    nc: 2
+    train_split: train/images
+    val_split: valid/images
+    test_split: test/images
+  export:
+    project_root_model: weapon_detection_custom.pt
+    training_best_name: weapon_detection_best.pt
+  training_fast:
+    model: yolov8n.pt
+    epochs: 15
+    imgsz: 640
+    batch: 16
+    patience: 10
+    device: auto
+    workers: 4
+    cache: disk
+    amp: true
+    plots: false
+    mosaic: 1.0
+    mixup: 0.0
+    copy_paste: 0.0
+    close_mosaic: 5
+    name: weapon_detection_fast
+
+detection:
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  input_size: 640
+  camera_index: 0
+  frame_width: 1280
+  frame_height: 720
+  fps: 30
+  use_remote_stream: true
+  remote_stream_url: "http://YOUR_ESP32_IP:80/stream"
+  remote_reconnect_attempts: 5
+  human_model: "yolov8n.pt"
+  object_model: "yolov8n.pt"
+  weapon_model: "yolov8n.pt"
+
+alerts:
+  enable_audio: true
+  enable_visual: true
+  alert_duration: 3.0
+  dangerous_objects:
+    - "knife"
+    - "gun"
+    - "rifle"
+    - "pistol"
+    - "weapon"
+    - "blade"
+    - "sword"
+    - "firearm"
+    - "handgun"
+    - "potential_firearm"
+    - "suspicious_remote"
+    - "suspicious_cell phone"
+    - "potential_blade"
+    - "suspicious_drill"
+    - "suspicious_spray bottle"
+    - "suspicious_hair dryer"
+    - "suspicious_flashlight"
+    - "scissors"
+
+logging:
+  level: "INFO"
+  save_detections: true
+  output_dir: "detections"
+
+llm:
+  enabled: false
+  ollama_url: "http://localhost:11434"
+  model: "llama2:7b"
+  analysis_interval: 5.0
+  temperature: 0.1
+  max_tokens: 100
+  timeout: 30.0
+
+display:
+  window_title: "AI Security Detection System"
+  show_confidence: true
+  show_fps: true
+  show_llm_analysis: true
+  bbox_thickness: 2
+  font_scale: 0.6

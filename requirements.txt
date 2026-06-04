@@ -1,0 +1,13 @@
+opencv-python==4.8.1.78
+ultralytics>=8.4.0,<9.0.0
+numpy>=1.24.0,<2.0.0
+pillow>=9.5.0
+matplotlib>=3.7.0
+pyyaml>=6.0
+requests>=2.31.0
+scipy>=1.10.0
+tqdm>=4.65.0
+psutil>=5.9.0
+pygame>=2.5.0
+dataclasses-json>=0.6.0
+kaggle>=1.6.0
