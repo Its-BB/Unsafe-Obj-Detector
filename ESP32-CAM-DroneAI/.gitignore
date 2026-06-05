@@ -1,0 +1,6 @@
+build/
+managed_components/
+sdkconfig.old
+dependencies.lock
+
+main/wifi_config.h

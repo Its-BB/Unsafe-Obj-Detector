@@ -4,6 +4,8 @@ Real-time camera system that spots knives and pistols, draws boxes on the feed, 
 
 ![Model predictions on validation images](docs/images/val_predictions.jpg)
 
+**Note:** Accidently forced push without thinking, lost all commit history but still available when we check parents so please do ;(
+
 ## Try it
 
 There is no hosted web demo yet ;P. Run it on your machine (see **Quick start** below). Press **Q** in the video window to quit.
@@ -71,7 +73,9 @@ Use `camera_index: 1` if you have more than one camera.
 
 ## Run with ESP32-CAM
 
-1. Flash your ESP32 with a sketch that serves `http://<ip>:80/stream`.
+Firmware source is in `ESP32-CAM-DroneAI/` (see that folder’s README). After flash, use the IP from serial monitor.
+
+1. Edit `ESP32-CAM-DroneAI/main/wifi_config.h` with your WiFi, then `idf.py build flash monitor`.
 2. Set your board IP in `config.yaml`:
 
 ```yaml

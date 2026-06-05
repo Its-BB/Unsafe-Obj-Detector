@@ -1,0 +1,13 @@
+#ifndef WIFI_CONFIG_H
+#define WIFI_CONFIG_H
+
+#define WIFI_ID             "YourWiFiName"
+#define WIFI_PASSWORD       "YourWiFiPassword"
+
+#define WIFI_MAXIMUM_RETRY          10
+#define WIFI_CONNECT_TIMEOUT_MS     60000
+#define WIFI_AUTH_MODE              WIFI_AUTH_WPA2_PSK
+
+#define WIFI_SSID                   WIFI_ID
+
+#endif
