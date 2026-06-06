@@ -11,7 +11,7 @@ Real-time camera system that spots knives and pistols, draws boxes on the feed, 
 Python 3.10+. Installs torch, ultralytics, opencv, and everything else:
 
 ```powershell
-git clone https://github.com/Daiwik/Droneai.git
+git clone https://github.com/Its-BB/Unsafe-Obj-Detector.git
 cd Droneai
 .\scripts\install.ps1
 ```
@@ -26,7 +26,7 @@ droneai test --offline
 
 ### Windows standalone (no Python required)
 
-Download `droneai-security-windows.zip` from [GitHub Releases](https://github.com/Daiwik/Droneai/releases), extract, then:
+Download `droneai-security-windows.zip` from [GitHub Releases](https://github.com/Its-BB/Unsafe-Obj-Detector/releases), extract, then:
 
 ```powershell
 .\droneai.exe init
@@ -57,8 +57,8 @@ For best knife/pistol accuracy, place trained weights at `weapon_detection_custo
 
 | What | URL / command |
 |------|----------------|
-| **Demo (no Python)** | [GitHub Releases](https://github.com/Daiwik/Droneai/releases) → download `droneai-security-windows.zip` → run `droneai.exe` |
-| **Source install** | `git clone https://github.com/Daiwik/Droneai.git` → `.\scripts\install.ps1` |
+| **Demo (no Python)** | [GitHub Releases](https://github.com/Its-BB/Unsafe-Obj-Detector/releases) → download `droneai-security-windows.zip` → run `droneai.exe` |
+| **Source install** | `git clone https://github.com/Its-BB/Unsafe-Obj-Detector.git` → `.\scripts\install.ps1` |
 | **PyPI** | `pip install droneai-security` — available after publishing to PyPI |
 | **5-minute try** | `droneai init` → `droneai test --offline` → `droneai` with a webcam |
 
