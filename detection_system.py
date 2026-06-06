@@ -10,6 +10,7 @@ from ultralytics import YOLO
 from typing import List, Tuple, Dict, Any
 import threading
 import queue
+from detection.pipeline import DetectionPipeline
 from paths import resolve_weapon_model_path
 from weapon_detector import WeaponDetector
 from alert_system import AlertSystem
@@ -27,6 +28,12 @@ class AIDetectionSystem:
         self.load_models()
         
         self.weapon_detector = WeaponDetector(self.config)
+        self.pipeline = DetectionPipeline(
+            self.config,
+            self.object_model,
+            self.weapon_detector,
+            self.human_model,
+        )
         self.alert_system = AlertSystem(self.config)
         self.llm_analyzer = LocalLLMAnalyzer(self.config)
         self.report_generator = SmartReportGenerator()
@@ -150,43 +157,12 @@ class AIDetectionSystem:
         return sound
     
     def detect_objects(self, frame: np.ndarray) -> List[Dict]:
-        """Detect objects in the frame and classify them."""
-        detections = []
-        
         try:
-            results = self.object_model(frame, conf=self.config['detection']['confidence_threshold'])
-            
-            for result in results:
-                boxes = result.boxes
-                if boxes is not None:
-                    for box in boxes:
-                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                        confidence = box.conf[0].cpu().numpy()
-                        class_id = int(box.cls[0].cpu().numpy())
-                        class_name = self.object_model.names[class_id]
-                        
-                        detection_type = self.categorize_detection(class_name)
-                        
-                        detection = {
-                            'bbox': (int(x1), int(y1), int(x2), int(y2)),
-                            'confidence': float(confidence),
-                            'class_name': class_name,
-                            'type': detection_type,
-                            'is_dangerous': self.is_dangerous_object(class_name)
-                        }
-                        
-                        detections.append(detection)
-            
-            weapon_detections = self.weapon_detector.detect_weapons(frame)
-            
-            for weapon_detection in weapon_detections:
-                weapon_detection['is_dangerous'] = weapon_detection.get('is_weapon', False)
-                detections.append(weapon_detection)
-                        
+            self.pipeline.tick_fps()
+            return self.pipeline.process_frame(frame)
         except Exception as e:
             logging.error(f"Error during detection: {e}")
-        
-        return detections
+            return []
     
     def categorize_detection(self, class_name: str) -> str:
         """Categorize detected objects."""
@@ -350,15 +326,13 @@ class AIDetectionSystem:
                         )
                         logging.info(f"Incident report generated: {report['incident_id']}")
                 
-                dangerous_detections = [d for d in detections if d.get('is_dangerous', False)]
-                if dangerous_detections:
+                dangerous_detections = self.pipeline.get_dangerous(detections)
+                if dangerous_detections and self.pipeline.should_fire_alert(detections):
                     self.alert_system.trigger_alert(dangerous_detections, frame)
-                
-                frame = self.draw_detections(frame, detections)
-                
+                    self.pipeline.save_threat(frame, dangerous_detections)
+
+                frame = self.pipeline.draw_frame(frame, detections)
                 frame = self.alert_system.draw_alert_overlay(frame, detections)
-                
-                frame = self.add_info_overlay(frame)
                 
                 cv2.imshow(self.config['display']['window_title'], frame)
                 

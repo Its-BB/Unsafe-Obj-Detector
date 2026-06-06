@@ -45,6 +45,21 @@ weapon_training:
     close_mosaic: 5
     name: weapon_detection_fast
 
+detection_pipeline:
+  fix_brightness: true
+  auto_contrast: false
+  reduce_noise: false
+  use_vote: true
+  confirm_frames: 3
+  track_min_hits: 2
+  track_max_age: 2.0
+  smooth_window: 5
+  person_near_dist: 200
+  alert_min_level: medium
+  save_gap_seconds: 2.0
+  history_frames: 30
+  min_box_pixels: 10
+
 detection:
   confidence_threshold: 0.5
   nms_threshold: 0.4

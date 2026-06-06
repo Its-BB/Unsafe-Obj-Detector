@@ -4,7 +4,6 @@ import yaml
 import logging
 import time
 import os
-import json
 import requests
 import threading
 import queue
@@ -14,6 +13,7 @@ from typing import List, Dict, Any
 from io import BytesIO
 
 from alert_system import AlertSystem
+from detection.pipeline import DetectionPipeline
 from paths import resolve_weapon_model_path
 from scene_analyzer import LocalLLMAnalyzer, SmartReportGenerator
 from weapon_detector import WeaponDetector
@@ -149,6 +149,12 @@ class AIDetectionSystem:
         self.load_models()
         
         self.weapon_detector = WeaponDetector(self.config)
+        self.pipeline = DetectionPipeline(
+            self.config,
+            self.object_model,
+            self.weapon_detector,
+            self.human_model,
+        )
         self.alert_system = AlertSystem(self.config)
         self.llm_analyzer = LocalLLMAnalyzer(self.config)
         self.report_generator = SmartReportGenerator()
@@ -273,77 +279,12 @@ class AIDetectionSystem:
             raise
     
     def detect_objects(self, frame: np.ndarray) -> List[Dict]:
-        detections = []
         try:
-            results = self.object_model(frame, conf=self.config['detection']['confidence_threshold'])
-            for result in results:
-                if result.boxes is not None:
-                    for box in result.boxes:
-                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                        confidence = float(box.conf[0].cpu().numpy())
-                        class_id = int(box.cls[0].cpu().numpy())
-                        class_name = self.object_model.names[class_id]
-                        detection_type = 'human' if class_name == 'person' else 'object'
-                        detections.append({
-                            'bbox': (int(x1), int(y1), int(x2), int(y2)),
-                            'confidence': confidence,
-                            'class_name': class_name,
-                            'type': detection_type,
-                            'is_dangerous': self.is_dangerous_object(class_name)
-                        })
-            
-            weapon_detections = self.weapon_detector.detect_weapons(frame)
-            for weapon_detection in weapon_detections:
-                weapon_detection['is_dangerous'] = weapon_detection.get('is_weapon', False)
-                detections.append(weapon_detection)
+            self.pipeline.tick_fps()
+            return self.pipeline.process_frame(frame)
         except Exception as e:
             logging.error(f"Error during detection: {e}")
-        
-        return detections
-    
-    def is_dangerous_object(self, class_name: str) -> bool:
-        dangerous_objects = self.config['alerts']['dangerous_objects']
-        return any(dangerous_item.lower() in class_name.lower() for dangerous_item in dangerous_objects)
-    
-    def draw_detections(self, frame: np.ndarray, detections: List[Dict]) -> np.ndarray:
-        for detection in detections:
-            x1, y1, x2, y2 = detection['bbox']
-            confidence = detection['confidence']
-            class_name = detection['class_name']
-            is_dangerous = detection.get('is_dangerous', False)
-            
-            color = (0, 0, 255) if is_dangerous else (0, 255, 0) if detection.get('type') == 'human' else (255, 0, 0)
-            thickness = 3 if is_dangerous else 2
-            
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-            
-            label = f"{class_name}: {confidence:.2f}" if self.config['display']['show_confidence'] else class_name
-            if is_dangerous:
-                label = f"ALERT {label}"
-            
-            font_scale = self.config['display']['font_scale']
-            (label_w, label_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
-            
-            cv2.rectangle(frame, (x1, y1 - label_h - 10), (x1 + label_w + 10, y1), color, -1)
-            cv2.putText(frame, label, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 1)
-        
-        return frame
-    
-    def add_info_overlay(self, frame: np.ndarray) -> np.ndarray:
-        height, width = frame.shape[:2]
-        
-        if self.config['display']['show_fps']:
-            self.frame_count += 1
-            elapsed_time = time.time() - self.start_time
-            fps = self.frame_count / elapsed_time if elapsed_time > 0 else 0
-            cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        title = self.config['display']['window_title']
-        cv2.putText(frame, title, (10, height - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        
-        cv2.circle(frame, (width - 30, 30), 10, (0, 255, 0), -1)
-        
-        return frame
+            return []
     
     def run(self):
         logging.info("Starting AI Detection System")
@@ -381,16 +322,16 @@ class AIDetectionSystem:
                 if latest_analysis and latest_analysis.threat_level in ['high', 'critical']:
                     report = self.report_generator.generate_incident_report(latest_analysis, detections, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                     logging.critical(f"INCIDENT REPORT GENERATED: {report['incident_id']}")
-                    self._save_incident_evidence(frame, detections, report)
+                    self.pipeline.save_incident(frame, detections, report)
                 
-                dangerous_detections = [d for d in detections if d.get('is_dangerous', False)]
-                if dangerous_detections:
+                dangerous_detections = self.pipeline.get_dangerous(detections)
+                if dangerous_detections and self.pipeline.should_fire_alert(detections):
                     self.alert_system.trigger_alert(dangerous_detections, frame)
                     self._log_threat_details(dangerous_detections)
-                
-                frame = self.draw_detections(frame, detections)
+                    self.pipeline.save_threat(frame, dangerous_detections)
+
+                frame = self.pipeline.draw_frame(frame, detections)
                 frame = self.alert_system.draw_alert_overlay(frame, detections)
-                frame = self.add_info_overlay(frame)
                 
                 cv2.imshow(self.config['display']['window_title'], frame)
                 
@@ -415,31 +356,6 @@ class AIDetectionSystem:
             logging.critical(f"  Confidence: {confidence:.2%}")
             logging.critical(f"  Weapon Score: {weapon_score:.2%}")
             logging.critical(f"  Location: {bbox}")
-    
-    def _save_incident_evidence(self, frame: np.ndarray, detections: List[Dict], report: Dict):
-        try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            evidence_dir = os.path.join(self.config['logging']['output_dir'], 'incidents')
-            os.makedirs(evidence_dir, exist_ok=True)
-            
-            frame_path = os.path.join(evidence_dir, f"incident_{report['incident_id']}_frame.jpg")
-            report_path = os.path.join(evidence_dir, f"incident_{report['incident_id']}_report.json")
-            
-            annotated = frame.copy()
-            for detection in detections:
-                if detection.get('is_dangerous', False):
-                    x1, y1, x2, y2 = detection['bbox']
-                    cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                    cv2.putText(annotated, f"THREAT: {detection['class_name']}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-            
-            cv2.imwrite(frame_path, annotated)
-            with open(report_path, 'w') as f:
-                json.dump(report, f, indent=2)
-            
-            logging.critical(f"EVIDENCE SAVED: {frame_path}")
-            logging.critical(f"REPORT SAVED: {report_path}")
-        except Exception as e:
-            logging.error(f"Failed to save incident evidence: {e}")
     
     def cleanup(self):
         logging.info("Detection system shutdown")

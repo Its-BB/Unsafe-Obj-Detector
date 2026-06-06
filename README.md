@@ -35,6 +35,7 @@ python app.py
 - Sound and visual alerts for high-confidence threats
 - Saves incident frames under `detections/` when logging is on
 - Kaggle guns/knives dataset pipeline to train your own weights
+- Extended detection pipeline: tracking, smoothing, zones, multi-frame threat voting, stats, evidence saves
 
 ## Screenshots
 
@@ -140,6 +141,7 @@ Video frames go through **Ultralytics YOLO**. A model trained on the [guns/knive
 | `app.py` | Main live detection app (webcam or ESP32) |
 | `detection_system.py` | Alternate entry point with the same idea |
 | `weapon_detector.py` | Weapon detection logic |
+| `detection/` | Pipeline modules (`pipeline.py`, `track_boxes.py`, `threat_level.py`, etc.) |
 | `weapon_training/` | Download, prepare, train, test |
 | `config.yaml` | Your local settings (copy from `config.example.yaml`) |
 
