@@ -9,7 +9,7 @@ description = "Real-time camera system that detects knives and pistols with YOLO
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "DroneAI" }]
+authors = [{ name = "Its-BB" }]
 keywords = ["yolo", "weapon-detection", "security", "computer-vision", "esp32-cam"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -46,9 +46,9 @@ train = ["kaggle>=1.6.0"]
 dev = ["pyinstaller>=6.0.0", "build>=1.0.0"]
 
 [project.urls]
-Homepage = "https://github.com/Daiwik/Droneai"
-Repository = "https://github.com/Daiwik/Droneai"
-Issues = "https://github.com/Daiwik/Droneai/issues"
+Homepage = "https://github.com/Its-BB/Unsafe-Obj-Detector"
+Repository = "https://github.com/Its-BB/Unsafe-Obj-Detector"
+Issues = "https://github.com/Its-BB/Unsafe-Obj-Detector/issues"
 
 [project.scripts]
 droneai = "droneai.cli:main"
