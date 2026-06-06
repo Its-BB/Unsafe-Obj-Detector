@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "droneai-security"
+version = "1.0.0"
+description = "Real-time camera system that detects knives and pistols with YOLO"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "DroneAI" }]
+keywords = ["yolo", "weapon-detection", "security", "computer-vision", "esp32-cam"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+]
+dependencies = [
+    "opencv-python>=4.8.0,<5.0.0",
+    "ultralytics>=8.4.0,<9.0.0",
+    "numpy>=1.24.0,<2.0.0",
+    "pillow>=9.5.0",
+    "matplotlib>=3.7.0",
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "scipy>=1.10.0",
+    "tqdm>=4.65.0",
+    "psutil>=5.9.0",
+    "pygame>=2.5.0",
+    "dataclasses-json>=0.6.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+]
+
+[project.optional-dependencies]
+train = ["kaggle>=1.6.0"]
+dev = ["pyinstaller>=6.0.0", "build>=1.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/Daiwik/Droneai"
+Repository = "https://github.com/Daiwik/Droneai"
+Issues = "https://github.com/Daiwik/Droneai/issues"
+
+[project.scripts]
+droneai = "droneai.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+py-modules = [
+    "app",
+    "paths",
+    "alert_system",
+    "weapon_detector",
+    "scene_analyzer",
+    "detection_system",
+    "fetch_video",
+    "test_integration",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["detection*", "weapon_training*", "droneai*"]
+
+[tool.setuptools.package-data]
+droneai = ["data/*"]

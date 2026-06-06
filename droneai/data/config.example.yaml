@@ -68,7 +68,7 @@ detection:
   frame_width: 1280
   frame_height: 720
   fps: 30
-  use_remote_stream: true
+  use_remote_stream: false
   remote_stream_url: "http://YOUR_ESP32_IP:80/stream"
   remote_reconnect_attempts: 5
   human_model: "yolov8n.pt"
@@ -80,41 +80,25 @@ alerts:
   enable_visual: true
   alert_duration: 3.0
   dangerous_objects:
-    - "knife"
-    - "gun"
-    - "rifle"
-    - "pistol"
-    - "weapon"
-    - "blade"
-    - "sword"
-    - "firearm"
-    - "handgun"
-    - "potential_firearm"
-    - "suspicious_remote"
-    - "suspicious_cell phone"
-    - "potential_blade"
-    - "suspicious_drill"
-    - "suspicious_spray bottle"
-    - "suspicious_hair dryer"
-    - "suspicious_flashlight"
-    - "scissors"
+    - knife
+    - pistol
 
 logging:
-  level: "INFO"
+  level: INFO
   save_detections: true
-  output_dir: "detections"
+  output_dir: detections
 
 llm:
   enabled: false
-  ollama_url: "http://localhost:11434"
-  model: "llama2:7b"
+  ollama_url: http://localhost:11434
+  model: llama2:7b
   analysis_interval: 5.0
   temperature: 0.1
   max_tokens: 100
   timeout: 30.0
 
 display:
-  window_title: "AI Security Detection System"
+  window_title: AI Security Detection System
   show_confidence: true
   show_fps: true
   show_llm_analysis: true

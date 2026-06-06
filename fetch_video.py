@@ -20,7 +20,9 @@ import yaml
 
 
 def stream_host_from_config() -> str:
-    config_path = Path(__file__).resolve().parent / 'config.yaml'
+    from paths import ensure_config
+
+    config_path = ensure_config()
     with open(config_path, encoding='utf-8') as f:
         url = yaml.safe_load(f)['detection']['remote_stream_url']
     host = urlparse(url).hostname or 'YOUR_ESP32_IP'

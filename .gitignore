@@ -4,6 +4,8 @@ env/
 .env
 .env.*
 
+config.yaml
+
 .kaggle/
 **/kaggle.json
 **/weapon_focus_config.json
@@ -31,8 +33,10 @@ __pycache__/
 *$py.class
 .Python
 *.egg-info/
+
 dist/
 build/
+*.zip
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

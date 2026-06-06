@@ -4,28 +4,75 @@ Real-time camera system that spots knives and pistols, draws boxes on the feed, 
 
 ![Model predictions on validation images](docs/images/val_predictions.jpg)
 
-**Note:** Accidently forced push without thinking, lost all commit history but still available when we check parents so please do ;(
+## Install (one command)
 
-## Try it
+### From source (recommended until PyPI publish)
 
-There is no hosted web demo yet ;P. Run it on your machine (see **Quick start** below). Press **Q** in the video window to quit.
+Python 3.10+. Installs torch, ultralytics, opencv, and everything else:
+
+```powershell
+git clone https://github.com/Daiwik/Droneai.git
+cd Droneai
+.\scripts\install.ps1
+```
+
+Or manually:
+
+```powershell
+pip install .
+droneai init
+droneai test --offline
+```
+
+### Windows standalone (no Python required)
+
+Download `droneai-security-windows.zip` from [GitHub Releases](https://github.com/Daiwik/Droneai/releases), extract, then:
+
+```powershell
+.\droneai.exe init
+.\droneai.exe test --offline
+.\droneai.exe
+```
+
+Press **Q** in the video window to quit.
+
+> **First run needs internet once** to download YOLO weights (~6 MB) unless you bundled `yolov8n.pt` or `weapon_detection_custom.pt` in the release folder.
 
 ## Quick start
 
 ```powershell
-cd code
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-copy config.example.yaml config.yaml
+droneai init               # creates config.yaml (webcam mode by default)
+droneai test --offline     # verify models load without a camera
+droneai                    # live detection with your webcam
 ```
 
-Train or copy a weights file to `weapon_detection_custom.pt` (see **Train the weapon model**), then:
+For best knife/pistol accuracy, place trained weights at `weapon_detection_custom.pt` next to `droneai.exe` or in your project data folder. Without them, the app uses generic YOLO weights (still runs; less accurate on pistols).
 
-```powershell
-python app.py
-```
+**Project data folder** (config, logs, detections):
+- Installed via pip: `%APPDATA%\droneai-security` on Windows, `~/.local/share/droneai-security` on Linux
+- Standalone `.exe`: same folder as `droneai.exe`
+- Development: repo root (after `droneai init` or copying `config.example.yaml`)
+
+## Demo for reviewers
+
+| What | URL / command |
+|------|----------------|
+| **Demo (no Python)** | [GitHub Releases](https://github.com/Daiwik/Droneai/releases) → download `droneai-security-windows.zip` → run `droneai.exe` |
+| **Source install** | `git clone https://github.com/Daiwik/Droneai.git` → `.\scripts\install.ps1` |
+| **PyPI** | `pip install droneai-security` — available after publishing to PyPI |
+| **5-minute try** | `droneai init` → `droneai test --offline` → `droneai` with a webcam |
+
+No separate torch/opencv install steps — dependencies are in `pyproject.toml` and bundled in the Windows zip.
+
+## CLI commands
+
+| Command | Description |
+|---------|-------------|
+| `droneai` | Start live weapon detection |
+| `droneai init` | Create `config.yaml` from defaults |
+| `droneai test --offline` | Smoke test (no camera/stream) |
+| `droneai test` | Full test including ESP32 stream if configured |
+| `droneai fetch-video` | ESP32-CAM MJPEG viewer |
 
 ## Features
 
@@ -56,7 +103,7 @@ python app.py
 
 ## Run with your webcam
 
-Edit `config.yaml`:
+Edit `config.yaml` (created by `droneai init`):
 
 ```yaml
 detection:
@@ -67,17 +114,18 @@ detection:
 Then:
 
 ```powershell
-python app.py
+droneai
 ```
 
 Use `camera_index: 1` if you have more than one camera.
 
 ## Run with ESP32-CAM
 
-Firmware source is in `ESP32-CAM-DroneAI/` (see that folder’s README). After flash, use the IP from serial monitor.
+Firmware source is in `ESP32-CAM-DroneAI/` (see that folder's README). After flash, use the IP from serial monitor.
 
-1. Edit `ESP32-CAM-DroneAI/main/wifi_config.h` with your WiFi, then `idf.py build flash monitor`.
-2. Set your board IP in `config.yaml`:
+1. Copy `ESP32-CAM-DroneAI/wifi_config.h.example` to `main/wifi_config.h` and set your WiFi.
+2. Build and flash: `idf.py build flash monitor`.
+3. Set your board IP in `config.yaml`:
 
 ```yaml
 detection:
@@ -85,22 +133,16 @@ detection:
   remote_stream_url: "http://YOUR_ESP32_IP:80/stream"
 ```
 
-3. Test the stream only:
+4. Test the stream only:
 
 ```powershell
-python fetch_video.py
+droneai fetch-video
 ```
 
-4. Run the full app:
+5. Run the full app:
 
 ```powershell
-python app.py
-```
-
-Offline config check (no camera needed):
-
-```powershell
-python test_integration.py --offline
+droneai
 ```
 
 ## Train the weapon model
@@ -108,6 +150,7 @@ python test_integration.py --offline
 Needs Python 3.10+, a GPU recommended, and Kaggle API token at `%USERPROFILE%\.kaggle\kaggle.json`.
 
 ```powershell
+pip install ".[train]"
 cd weapon_training
 py download_kaggle_dataset.py
 py prepare_dataset.py
@@ -121,14 +164,33 @@ cd weapon_training
 .\run_full_training.ps1
 ```
 
-`weapon_detection_custom.pt` at the project root. Validate:
+Copy `weapon_detection_custom.pt` into your project data folder (or next to `droneai.exe` in the release zip). Validate:
 
 ```powershell
 cd weapon_training
 py test_trained_model.py
 ```
 
-Default training preset in `config.yaml` is **15 epochs**, YOLOv8n, batch 16
+Default training preset is **15 epochs**, YOLOv8n, batch 16.
+
+## Build standalone Windows release
+
+For maintainers creating the reviewer zip:
+
+```powershell
+.\scripts\build_exe.ps1
+```
+
+Output: `dist\droneai-security-windows.zip` (~1–2 GB, includes torch).
+
+If you have trained weights locally, the build script copies `weapon_detection_custom.pt` into the zip automatically.
+
+Optional: tag a release so GitHub Actions builds and uploads the zip:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## How it works
 
@@ -138,12 +200,23 @@ Video frames go through **Ultralytics YOLO**. A model trained on the [guns/knive
 
 | Path | Purpose |
 |------|---------|
+| `droneai/cli.py` | CLI entry point (`droneai` command) |
 | `app.py` | Main live detection app (webcam or ESP32) |
 | `detection_system.py` | Alternate entry point with the same idea |
 | `weapon_detector.py` | Weapon detection logic |
 | `detection/` | Pipeline modules (`pipeline.py`, `track_boxes.py`, `threat_level.py`, etc.) |
 | `weapon_training/` | Download, prepare, train, test |
-| `config.yaml` | Your local settings (copy from `config.example.yaml`) |
+| `config.example.yaml` | Default settings template (`droneai init` copies to `config.yaml`) |
+| `pyproject.toml` | PyPI package metadata and dependencies |
+| `droneai.spec` | PyInstaller spec for Windows standalone build |
+| `LICENSE` | MIT license |
+
+## System requirements
+
+- **Python install**: Python 3.10+, webcam optional for offline test
+- **Standalone exe**: Windows 10/11 x64, webcam optional
+- **GPU**: Optional; CPU inference works (slower). CUDA torch is picked up automatically if installed.
+- **Network**: First run downloads YOLO weights unless bundled in the release folder
 
 ## Credits
 

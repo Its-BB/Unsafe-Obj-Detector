@@ -1,20 +1,97 @@
+import os
 import shutil
+import sys
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent
+_DEV_ROOT = Path(__file__).resolve().parent
+
+
+def _frozen_root() -> Path | None:
+    """Directory next to a PyInstaller one-file/one-folder executable."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return None
+
+
+def user_data_dir() -> Path:
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path.home() / ".local" / "share"
+    path = base / "droneai-security"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def project_root() -> Path:
+    """Writable directory for config, weights, logs, and detection output."""
+    frozen = _frozen_root()
+    if frozen is not None:
+        return frozen
+
+    if (_DEV_ROOT / "config.example.yaml").exists() or (_DEV_ROOT / "config.yaml").exists():
+        return _DEV_ROOT
+
+    cwd = Path.cwd()
+    if (cwd / "config.yaml").exists() or (cwd / "config.example.yaml").exists():
+        return cwd
+
+    return user_data_dir()
+
+
+def bundled_config_example() -> Path:
+    with resources.as_file(
+        resources.files("droneai.data").joinpath("config.example.yaml")
+    ) as bundled:
+        return Path(bundled)
+
+
+def ensure_config(target_dir: Path | None = None) -> Path:
+    """Create config.yaml from the bundled example when missing."""
+    root = target_dir or project_root()
+    config_path = root / "config.yaml"
+    if config_path.exists():
+        return config_path
+
+    example = root / "config.example.yaml"
+    if not example.exists():
+        try:
+            shutil.copy2(bundled_config_example(), example)
+        except (ModuleNotFoundError, FileNotFoundError):
+            dev_example = _DEV_ROOT / "config.example.yaml"
+            if dev_example.exists():
+                shutil.copy2(dev_example, example)
+
+    if example.exists():
+        shutil.copy2(example, config_path)
+    else:
+        raise FileNotFoundError(
+            "config.example.yaml not found. Run from the repo or reinstall droneai-security."
+        )
+
+    (root / "detections").mkdir(parents=True, exist_ok=True)
+    (root / "weapon_training" / "models").mkdir(parents=True, exist_ok=True)
+    return config_path
+
+
+# Backward-compatible alias used across the codebase.
+ROOT = project_root()
 
 
 def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
-    path = Path(config_path) if config_path else ROOT / 'config.yaml'
-    with open(path, encoding='utf-8') as f:
+    path = Path(config_path) if config_path else project_root() / "config.yaml"
+    if not path.exists():
+        path = ensure_config(path.parent)
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def resolve_path(relative: str) -> Path:
-    return (ROOT / relative).resolve()
+    return (project_root() / relative).resolve()
 
 
 def weapon_training_config(config: dict[str, Any] | None = None) -> dict[str, Any]:

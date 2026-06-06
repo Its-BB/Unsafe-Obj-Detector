@@ -139,7 +139,11 @@ class RemoteVideoStream:
 
 
 class AIDetectionSystem:
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str | None = None):
+        from paths import ensure_config
+
+        if config_path is None:
+            config_path = str(ensure_config())
         self.config = self.load_config(config_path)
         self.setup_logging()
         

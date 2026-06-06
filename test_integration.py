@@ -15,7 +15,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 
 def load_stream_url() -> str:
-    config_path = Path(__file__).parent / "config.yaml"
+    from paths import ensure_config
+
+    config_path = ensure_config()
     with config_path.open(encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     det = cfg.get("detection") or {}
@@ -37,7 +39,9 @@ def test_configuration_offline() -> bool:
 
         cfg = load_config()
         det = cfg.get("detection") or {}
-        out_dir = Path(__file__).parent / (cfg.get("logging") or {}).get("output_dir", "detections")
+        from paths import project_root
+
+        out_dir = project_root() / (cfg.get("logging") or {}).get("output_dir", "detections")
         print("[OK] config.yaml loaded")
         print(f"  - use_remote_stream: {det.get('use_remote_stream', False)}")
         print(f"  - remote_stream_url: {det.get('remote_stream_url', 'N/A')}")

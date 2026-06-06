@@ -68,7 +68,7 @@ detection:
   frame_width: 1280
   frame_height: 720
   fps: 30
-  use_remote_stream: true
+  use_remote_stream: false
   remote_stream_url: "http://YOUR_ESP32_IP:80/stream"
   remote_reconnect_attempts: 5
   human_model: "yolov8n.pt"
