@@ -13,8 +13,17 @@ from paths import (
 
 class WeaponDetector:
     
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, primary_model: YOLO | None = None):
         self.config = config
+        self.injected_primary_model = primary_model
+        det_cfg = config.get('detection', {})
+        pipe_cfg = config.get('detection_pipeline', {})
+        weapon_cfg = config.get('weapon', {})
+        self.imgsz = int(det_cfg.get('input_size', 640))
+        self.profile = str(weapon_cfg.get('inference_profile', pipe_cfg.get('weapon_inference_profile', 'fast'))).lower()
+        if self.profile not in {'fast', 'balanced', 'accurate'}:
+            self.profile = 'fast'
+        self.device = 0 if torch.cuda.is_available() else 'cpu'
         self.weapon_classes = [
             'knife', 'pistol', 'rifle', 'gun', 'handgun', 'firearm',
             'blade', 'sword', 'dagger', 'machete', 'axe', 'hammer',
@@ -30,7 +39,7 @@ class WeaponDetector:
         self.secondary_model = None
         self.load_models()
         
-        self.confidence_threshold = config['detection']['confidence_threshold']
+        self.confidence_threshold = det_cfg.get('confidence_threshold', 0.5)
         
         self.using_custom_model = has_trained_weapon_model(config)
         if self.using_custom_model:
@@ -46,13 +55,22 @@ class WeaponDetector:
         self.gun_detection_enabled = not self.using_custom_model
         self.shape_detection_enabled = not self.using_custom_model
         self.suspicious_object_threshold = 0.5
+        logging.info('Weapon detector profile: %s (device=%s, imgsz=%s)', self.profile, self.device, self.imgsz)
 
     def load_models(self):
         try:
             primary = resolve_weapon_model_path(self.config)
             secondary = resolve_weapon_secondary_path(self.config)
-            self.primary_model = YOLO(primary)
-            self.secondary_model = YOLO(secondary)
+            self.primary_model = self.injected_primary_model or YOLO(primary)
+            self.secondary_model = None
+            if self.profile != 'fast':
+                self.secondary_model = self.primary_model if secondary == primary else YOLO(secondary)
+            try:
+                self.primary_model.fuse()
+                if self.secondary_model is not None and self.secondary_model is not self.primary_model:
+                    self.secondary_model.fuse()
+            except Exception:
+                pass
             logging.info('Weapon model: %s', primary)
             logging.info('Model classes: %s', self.primary_model.names)
         except Exception as e:
@@ -63,7 +81,12 @@ class WeaponDetector:
         """Detect weapons using multiple detection strategies with enhanced angle robustness."""
         all_detections = []
         
-        angle_detections = self._detect_multi_angle(frame)
+        all_detections.extend(self._detect_with_model(frame, self.primary_model, "primary"))
+
+        if self.profile == 'fast':
+            return self._filter_detections(all_detections)
+
+        angle_detections = self._detect_multi_angle(frame, include_original=False)
         all_detections.extend(angle_detections)
         
         person_regions = self._get_person_regions(frame)
@@ -71,8 +94,9 @@ class WeaponDetector:
             region_detections = self._detect_in_region(frame, region)
             all_detections.extend(region_detections)
         
-        scale_detections = self._detect_multi_scale(frame)
-        all_detections.extend(scale_detections)
+        if self.profile == 'accurate':
+            scale_detections = self._detect_multi_scale(frame)
+            all_detections.extend(scale_detections)
         
         if self.shape_detection_enabled:
             shape_detections = self._detect_by_shape(frame)
@@ -82,11 +106,13 @@ class WeaponDetector:
             gun_detections = self._detect_gun_patterns(frame)
             all_detections.extend(gun_detections)
         
-        context_detections = self._detect_suspicious_objects(frame)
-        all_detections.extend(context_detections)
+        if self.profile != 'fast':
+            context_detections = self._detect_suspicious_objects(frame)
+            all_detections.extend(context_detections)
         
-        edge_detections = self._detect_weapons_edge_enhanced(frame)
-        all_detections.extend(edge_detections)
+        if self.profile == 'accurate':
+            edge_detections = self._detect_weapons_edge_enhanced(frame)
+            all_detections.extend(edge_detections)
         
         filtered_detections = self._filter_detections(all_detections)
         
@@ -97,7 +123,7 @@ class WeaponDetector:
         detections = []
         
         try:
-            results = model(frame, conf=self.danger_threshold)
+            results = model(frame, conf=self.danger_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes
@@ -127,25 +153,29 @@ class WeaponDetector:
         
         return detections
     
-    def _detect_multi_angle(self, frame: np.ndarray) -> List[Dict]:
+    def _detect_multi_angle(self, frame: np.ndarray, include_original: bool = True) -> List[Dict]:
         """Detect weapons from multiple angles by applying rotations and flips."""
         all_detections = []
         height, width = frame.shape[:2]
         
-        original_detections = self._detect_with_model(frame, self.primary_model, "original")
-        all_detections.extend(original_detections)
+        if include_original:
+            original_detections = self._detect_with_model(frame, self.primary_model, "original")
+            all_detections.extend(original_detections)
         
         transformations = [
             ('horizontal_flip', cv2.flip(frame, 1)),
-            ('vertical_flip', cv2.flip(frame, 0)),
-            ('rotate_90', cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)),
-            ('rotate_270', cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)),
             ('rotate_180', cv2.rotate(frame, cv2.ROTATE_180)),
-            ('rotate_45', self._rotate_frame(frame, 45)),
-            ('rotate_315', self._rotate_frame(frame, -45)),
-            ('rotate_30', self._rotate_frame(frame, 30)),
-            ('rotate_330', self._rotate_frame(frame, -30))
         ]
+        if self.profile == 'accurate':
+            transformations.extend([
+                ('vertical_flip', cv2.flip(frame, 0)),
+                ('rotate_90', cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)),
+                ('rotate_270', cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+                ('rotate_45', self._rotate_frame(frame, 45)),
+                ('rotate_315', self._rotate_frame(frame, -45)),
+                ('rotate_30', self._rotate_frame(frame, 30)),
+                ('rotate_330', self._rotate_frame(frame, -30)),
+            ])
         
         for transform_name, transformed_frame in transformations:
             try:
@@ -341,7 +371,7 @@ class WeaponDetector:
         regions = []
         
         try:
-            results = self.primary_model(frame, conf=0.3)
+            results = self.primary_model(frame, conf=0.3, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes
@@ -370,6 +400,9 @@ class WeaponDetector:
     
     def _detect_in_region(self, frame: np.ndarray, region: Tuple[int, int, int, int]) -> List[Dict]:
         """Perform focused detection in a specific region."""
+        if self.secondary_model is None:
+            return []
+
         x1, y1, x2, y2 = region
         roi = frame[y1:y2, x1:x2]
         
@@ -379,7 +412,7 @@ class WeaponDetector:
         detections = []
         
         try:
-            results = self.secondary_model(roi, conf=self.danger_threshold)
+            results = self.secondary_model(roi, conf=self.danger_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes
@@ -493,7 +526,7 @@ class WeaponDetector:
         if confidence > 0.8 and base_score > 0:
             weapon_score = min(1.0, weapon_score * 1.2)
         
-        return weapon_score
+        return min(1.0, weapon_score)
     
     def _calculate_shape_weapon_score(self, contour, aspect_ratio: float, extent: float) -> float:
         """Calculate weapon score based on shape characteristics."""
@@ -563,7 +596,7 @@ class WeaponDetector:
         detections = []
         
         try:
-            results = self.primary_model(frame, conf=0.3)
+            results = self.primary_model(frame, conf=0.3, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes

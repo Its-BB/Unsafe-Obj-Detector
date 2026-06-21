@@ -78,7 +78,7 @@ def apply_class_rules(dets: DetectionList, dangerous: List[str]) -> DetectionLis
     out: DetectionList = []
     for det in dets:
         d = set_type_from_name(det)
-        d = set_danger_from_name(d, dangerous)
+        d = set_danger_from_list(d, dangerous)
         out.append(d)
     return out
 

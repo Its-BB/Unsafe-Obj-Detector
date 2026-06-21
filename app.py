@@ -152,7 +152,7 @@ class AIDetectionSystem:
         self.weapon_model = None
         self.load_models()
         
-        self.weapon_detector = WeaponDetector(self.config)
+        self.weapon_detector = WeaponDetector(self.config, self.weapon_model)
         self.pipeline = DetectionPipeline(
             self.config,
             self.object_model,
@@ -170,6 +170,10 @@ class AIDetectionSystem:
         self.llm_analysis_interval = self.config.get('llm', {}).get('analysis_interval', 2.0)
         self.frame_count = 0
         self.start_time = time.time()
+        pipe_cfg = self.config.get('detection_pipeline', {})
+        self.process_every_n_frames = max(1, int(pipe_cfg.get('process_every_n_frames', 2)))
+        self.max_inference_width = int(pipe_cfg.get('max_inference_width', 640))
+        self._last_detections: List[Dict] = []
         
         os.makedirs(self.config['logging']['output_dir'], exist_ok=True)
     
@@ -232,10 +236,21 @@ class AIDetectionSystem:
     def load_models(self):
         try:
             logging.info("Loading detection models...")
-            self.human_model = YOLO(self.config['detection']['human_model'])
-            self.object_model = YOLO(self.config['detection']['object_model'])
+            model_cache: Dict[str, YOLO] = {}
+
+            def get_model(path: str) -> YOLO:
+                if path not in model_cache:
+                    model_cache[path] = YOLO(path)
+                    try:
+                        model_cache[path].fuse()
+                    except Exception:
+                        pass
+                return model_cache[path]
+
+            self.human_model = get_model(self.config['detection']['human_model'])
+            self.object_model = get_model(self.config['detection']['object_model'])
             weapon_path = resolve_weapon_model_path(self.config)
-            self.weapon_model = YOLO(weapon_path)
+            self.weapon_model = get_model(weapon_path)
             logging.info('Models loaded (weapon: %s)', weapon_path)
         except Exception as e:
             logging.error(f"Error loading models: {e}")
@@ -284,11 +299,47 @@ class AIDetectionSystem:
     
     def detect_objects(self, frame: np.ndarray) -> List[Dict]:
         try:
+            self.frame_count += 1
+            if self._last_detections and self.frame_count % self.process_every_n_frames != 0:
+                return self._last_detections
+
+            detection_frame, scale = self._prepare_inference_frame(frame)
             self.pipeline.tick_fps()
-            return self.pipeline.process_frame(frame)
+            detections = self.pipeline.process_frame(detection_frame)
+            if scale != 1.0:
+                detections = self._scale_detections(detections, scale)
+            self._last_detections = detections
+            return detections
         except Exception as e:
             logging.error(f"Error during detection: {e}")
             return []
+
+    def _prepare_inference_frame(self, frame: np.ndarray) -> tuple[np.ndarray, float]:
+        if self.max_inference_width <= 0:
+            return frame, 1.0
+        h, w = frame.shape[:2]
+        if w <= self.max_inference_width:
+            return frame, 1.0
+        scale = self.max_inference_width / float(w)
+        resized = cv2.resize(frame, (self.max_inference_width, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+        return resized, scale
+
+    def _scale_detections(self, detections: List[Dict], scale: float) -> List[Dict]:
+        if scale <= 0:
+            return detections
+        factor = 1.0 / scale
+        out: List[Dict] = []
+        for det in detections:
+            copy = dict(det)
+            x1, y1, x2, y2 = copy.get('bbox', (0, 0, 0, 0))
+            copy['bbox'] = (
+                int(x1 * factor),
+                int(y1 * factor),
+                int(x2 * factor),
+                int(y2 * factor),
+            )
+            out.append(copy)
+        return out
     
     def run(self):
         logging.info("Starting AI Detection System")

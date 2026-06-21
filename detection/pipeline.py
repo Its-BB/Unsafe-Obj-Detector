@@ -100,6 +100,7 @@ class DetectionPipeline:
     def clean_detections(self, dets: DetectionList, frame_w: int, frame_h: int) -> DetectionList:
         pipe_cfg = self.config.get('detection_pipeline', {})
         min_pixels = int(pipe_cfg.get('min_box_pixels', 10))
+        min_weapon_score = float(pipe_cfg.get('min_weapon_score', 0.2))
         return filter_pipeline(
             dets,
             frame_w,
@@ -107,6 +108,7 @@ class DetectionPipeline:
             self.conf_threshold,
             self.nms_iou,
             min_pixels,
+            min_weapon_score,
         )
 
     def run_track_pass(self, dets: DetectionList) -> DetectionList:
@@ -155,6 +157,7 @@ class DetectionPipeline:
             self.conf_threshold,
             self.nms_iou,
             int(pipe_cfg.get('max_detections', 50)),
+            float(pipe_cfg.get('min_weapon_score', 0.2)),
         )
         raw = self.run_threat_pass(raw)
 

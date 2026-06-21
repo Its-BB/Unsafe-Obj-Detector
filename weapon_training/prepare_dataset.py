@@ -19,7 +19,7 @@ def main():
         return 1
     ds = weapon_training_config(config)['dataset']
     data = {
-        'path': str(root),
+        'path': '.',
         'train': ds['train_split'],
         'val': ds['val_split'],
         'nc': ds['nc'],

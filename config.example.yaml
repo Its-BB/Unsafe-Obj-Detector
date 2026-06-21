@@ -10,6 +10,7 @@ weapon:
   knife_threshold: 0.35
   pistol_threshold: 0.3
   danger_threshold: 0.6
+  inference_profile: fast
   fallback_primary: yolov8n.pt
   fallback_secondary: yolov8s.pt
 
@@ -46,12 +47,16 @@ weapon_training:
     name: weapon_detection_fast
 
 detection_pipeline:
+  weapon_inference_profile: fast
+  process_every_n_frames: 2
+  max_inference_width: 640
+  min_weapon_score: 0.2
   fix_brightness: true
   auto_contrast: false
   reduce_noise: false
   use_vote: true
-  confirm_frames: 3
-  track_min_hits: 2
+  confirm_frames: 2
+  track_min_hits: 1
   track_max_age: 2.0
   smooth_window: 5
   person_near_dist: 200
@@ -63,7 +68,7 @@ detection_pipeline:
 detection:
   confidence_threshold: 0.5
   nms_threshold: 0.4
-  input_size: 640
+  input_size: 512
   camera_index: 0
   frame_width: 1280
   frame_height: 720

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, List
 
 from detection.class_rules import apply_class_rules, boost_tools_near_humans, clean_labels
-from detection.filter_boxes import apply_nms, filter_by_conf, keep_top_n
+from detection.filter_boxes import apply_nms, filter_by_conf_or_weapon_score, keep_top_n
 from detection.merge_rules import combine_weapon_sources, keep_best_per_track, resolve_conflicts
 from detection.types import Detection, DetectionList
 
@@ -58,13 +58,14 @@ def full_post_process(
     min_conf: float,
     nms_iou: float,
     max_items: int = 50,
+    min_weapon_score: float = 0.2,
 ) -> DetectionList:
     steps: List[PassFn] = [
         drop_empty_names,
         drop_zero_conf,
         clean_labels,
         lambda x: apply_class_rules(x, dangerous),
-        lambda x: filter_by_conf(x, min_conf),
+        lambda x: filter_by_conf_or_weapon_score(x, min_conf, min_weapon_score),
         lambda x: apply_nms(x, nms_iou),
         combine_weapon_sources,
         resolve_conflicts,

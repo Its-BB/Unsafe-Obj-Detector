@@ -12,6 +12,17 @@ def filter_by_conf(dets: DetectionList, min_conf: float) -> DetectionList:
     return [d for d in dets if d.get('confidence', 0.0) >= min_conf]
 
 
+def filter_by_conf_or_weapon_score(dets: DetectionList, min_conf: float, min_weapon_score: float) -> DetectionList:
+    out: DetectionList = []
+    for det in dets:
+        if det.get('confidence', 0.0) >= min_conf:
+            out.append(det)
+            continue
+        if (det.get('type') == 'weapon' or det.get('is_weapon')) and det.get('weapon_score', 0.0) >= min_weapon_score:
+            out.append(det)
+    return out
+
+
 def filter_by_class(dets: DetectionList, class_names: Set[str]) -> DetectionList:
     wanted = {c.lower() for c in class_names}
     return [d for d in dets if d.get('class_name', '').lower() in wanted]
@@ -105,8 +116,9 @@ def filter_pipeline(
     min_conf: float,
     nms_iou: float,
     min_box_pixels: int = 10,
+    min_weapon_score: float = 0.2,
 ) -> DetectionList:
-    out = filter_by_conf(dets, min_conf)
+    out = filter_by_conf_or_weapon_score(dets, min_conf, min_weapon_score)
     out = filter_tiny_boxes(out, min_box_pixels)
     out = filter_huge_boxes(out, frame_w, frame_h)
     out = apply_nms(out, nms_iou)
