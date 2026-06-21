@@ -1,5 +1,7 @@
 # AI Security Detection
 
+# NOTE: THIS WAS MADE AND TESTED ON A SYSTEM WITH RTX5070; 32GIGS OF RAM; AND A RYZEN 5 7600X CPU
+
 Real-time camera system that spots knives and pistols, draws boxes on the feed, and raises alerts when something looks dangerous.
 
 ![Model predictions on validation images](docs/images/val_predictions.jpg)
