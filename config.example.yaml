@@ -104,6 +104,8 @@ llm:
 
 display:
   window_title: AI Security Detection System
+  enable_window: true
+  headless_on_error: true
   show_confidence: true
   show_fps: true
   show_llm_analysis: true

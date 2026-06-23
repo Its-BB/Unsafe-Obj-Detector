@@ -174,6 +174,8 @@ class AIDetectionSystem:
         self.process_every_n_frames = max(1, int(pipe_cfg.get('process_every_n_frames', 2)))
         self.max_inference_width = int(pipe_cfg.get('max_inference_width', 640))
         self._last_detections: List[Dict] = []
+        self.display_enabled = self._display_requested()
+        self.display_error_logged = False
         
         os.makedirs(self.config['logging']['output_dir'], exist_ok=True)
     
@@ -215,6 +217,8 @@ class AIDetectionSystem:
             },
             'display': {
                 'window_title': 'AI Security Detection System',
+                'enable_window': True,
+                'headless_on_error': True,
                 'show_confidence': True,
                 'show_fps': True,
                 'bbox_thickness': 2,
@@ -340,6 +344,49 @@ class AIDetectionSystem:
             )
             out.append(copy)
         return out
+
+    def _display_requested(self) -> bool:
+        if os.environ.get("DRONEAI_HEADLESS", "").strip().lower() in ("1", "true", "yes"):
+            return False
+        display_cfg = self.config.get('display', {})
+        if not bool(display_cfg.get('enable_window', True)):
+            return False
+        if os.name != "nt" and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            logging.warning("No desktop display detected; running without an OpenCV preview window")
+            return False
+        return True
+
+    def _disable_display_after_error(self, exc: cv2.error) -> None:
+        display_cfg = self.config.get('display', {})
+        if not bool(display_cfg.get('headless_on_error', True)):
+            raise exc
+        self.display_enabled = False
+        if not self.display_error_logged:
+            logging.warning(
+                "OpenCV GUI display is unavailable, continuing headless. "
+                "Set display.enable_window=false to silence this warning. Error: %s",
+                exc,
+            )
+            self.display_error_logged = True
+
+    def _show_frame(self, frame: np.ndarray) -> bool:
+        if not self.display_enabled:
+            return False
+        try:
+            cv2.imshow(self.config['display']['window_title'], frame)
+            return True
+        except cv2.error as exc:
+            self._disable_display_after_error(exc)
+            return False
+
+    def _exit_requested(self) -> bool:
+        if not self.display_enabled:
+            return False
+        try:
+            return (cv2.waitKey(1) & 0xFF) == ord('q')
+        except cv2.error as exc:
+            self._disable_display_after_error(exc)
+            return False
     
     def run(self):
         logging.info("Starting AI Detection System")
@@ -388,9 +435,9 @@ class AIDetectionSystem:
                 frame = self.pipeline.draw_frame(frame, detections)
                 frame = self.alert_system.draw_alert_overlay(frame, detections)
                 
-                cv2.imshow(self.config['display']['window_title'], frame)
-                
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+                self._show_frame(frame)
+
+                if self._exit_requested():
                     logging.info("Exit requested by user")
                     break
         except KeyboardInterrupt:
