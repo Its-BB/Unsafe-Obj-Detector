@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from paths import (
     deploy_weapon_model,
     load_config,
+    weapon_dataset_root,
     weapon_dataset_yaml,
     weapon_results_dir,
     weapon_training_config,
@@ -100,19 +101,44 @@ def train_with_oom_retry(model, kwargs):
     raise RuntimeError('GPU OOM at batch=4; try --cpu or close other GPU apps')
 
 
+def runtime_data_yaml(config) -> Path:
+    """Write an absolute-path dataset yaml for Ultralytics training."""
+    root = weapon_dataset_root(config)
+    ds = weapon_training_config(config)['dataset']
+    out = weapon_results_dir(config) / '_runtime_data.yaml'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        'path': str(root),
+        'train': ds['train_split'],
+        'val': ds['val_split'],
+        'test': ds.get('test_split', 'test/images'),
+        'nc': ds['nc'],
+        'names': ds['classes'],
+    }
+    import yaml
+
+    with open(out, 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=None, help='Override epoch count (e.g. 20)')
     parser.add_argument('--batch', type=int, default=None, help='Override batch size (e.g. 12)')
+    parser.add_argument('--imgsz', type=int, default=None, help='Override training image size (e.g. 416)')
+    parser.add_argument('--model', default=None, help='Override base model path/name')
+    parser.add_argument('--name', default=None, help='Override run name')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--cpu', action='store_true')
     args = parser.parse_args()
 
     config = load_config()
-    data_yaml = weapon_dataset_yaml(config)
-    if not data_yaml.exists():
-        logger.error('Missing %s - run prepare_dataset.py', data_yaml)
+    source_data_yaml = weapon_dataset_yaml(config)
+    if not source_data_yaml.exists():
+        logger.error('Missing %s - run prepare_dataset.py', source_data_yaml)
         return 1
+    data_yaml = runtime_data_yaml(config)
 
     wt = weapon_training_config(config)
     preset = dict(wt['training_fast'])
@@ -120,6 +146,12 @@ def main():
         preset['epochs'] = args.epochs
     if args.batch is not None:
         preset['batch'] = args.batch
+    if args.imgsz is not None:
+        preset['imgsz'] = args.imgsz
+    if args.model is not None:
+        preset['model'] = args.model
+    if args.name is not None:
+        preset['name'] = args.name
 
     resume = None
     if args.resume:

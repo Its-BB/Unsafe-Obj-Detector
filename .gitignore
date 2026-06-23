@@ -11,6 +11,7 @@ config.yaml
 **/weapon_focus_config.json
 
 *.pt
+!weapon_detection_custom.pt
 *.onnx
 *.engine
 
