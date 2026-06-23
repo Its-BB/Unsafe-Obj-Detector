@@ -47,10 +47,15 @@ class WeaponDetector:
             self.danger_threshold = weapon_cfg.get('danger_threshold', 0.6)
             self.custom_knife_threshold = weapon_cfg.get('knife_threshold', 0.35)
             self.custom_pistol_threshold = weapon_cfg.get('pistol_threshold', 0.3)
+            self.model_confidence_threshold = min(
+                self.custom_knife_threshold,
+                self.custom_pistol_threshold,
+            )
         else:
             self.danger_threshold = 0.2
             self.custom_knife_threshold = 0.2
             self.custom_pistol_threshold = 0.2
+            self.model_confidence_threshold = self.danger_threshold
 
         self.gun_detection_enabled = not self.using_custom_model
         self.shape_detection_enabled = not self.using_custom_model
@@ -123,7 +128,7 @@ class WeaponDetector:
         detections = []
         
         try:
-            results = model(frame, conf=self.danger_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
+            results = model(frame, conf=self.model_confidence_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes
@@ -412,7 +417,7 @@ class WeaponDetector:
         detections = []
         
         try:
-            results = self.secondary_model(roi, conf=self.danger_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
+            results = self.secondary_model(roi, conf=self.model_confidence_threshold, imgsz=self.imgsz, device=self.device, verbose=False)
             
             for result in results:
                 boxes = result.boxes
